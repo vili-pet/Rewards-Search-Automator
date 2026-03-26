@@ -52,6 +52,10 @@ const words = [
   "Kela mielenterveyspalvelut",
 ];
 
+// Trending words cache duration: 1 hour
+const TRENDS_CACHE_DURATION = 60 * 60 * 1000;
+let trendingWordsCache = null;
+
 // Configuration
 const config = {
   bing: {
@@ -118,8 +122,73 @@ async function loadState() {
 }
 
 // Helper functions
+// Fetch daily trending searches from Google Trends (Finland) and cache for 1 hour.
+// Falls back to the local words list when the fetch fails.
+async function fetchTrendingWords() {
+  // Return in-memory cache if still valid
+  if (trendingWordsCache) {
+    return trendingWordsCache;
+  }
+
+  // Check storage cache
+  const cached = await chrome.storage.local.get("trendingWordsCache");
+  const entry = cached.trendingWordsCache;
+  if (
+    entry &&
+    Array.isArray(entry.terms) &&
+    typeof entry.timestamp === "number" &&
+    entry.terms.length > 0 &&
+    Date.now() - entry.timestamp < TRENDS_CACHE_DURATION
+  ) {
+    trendingWordsCache = entry.terms;
+    return entry.terms;
+  }
+
+  try {
+    const response = await fetch(
+      "https://trends.google.com/trends/trendingsearches/daily/rss?geo=FI",
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const xml = await response.text();
+
+    // Extract <title> content from RSS items (skip first which is the channel title)
+    const matches = [
+      ...xml.matchAll(
+        /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g,
+      ),
+    ];
+    const terms = matches
+      .slice(1)
+      .map((m) => m[1]?.trim())
+      .filter((t) => t && t.length > 0);
+
+    if (terms.length > 0) {
+      trendingWordsCache = terms;
+      await chrome.storage.local.set({
+        trendingWordsCache: { terms, timestamp: Date.now() },
+      });
+      console.info(`Loaded ${terms.length} trending search terms from Google Trends.`);
+      return terms;
+    }
+  } catch (error) {
+    console.log(
+      "Could not fetch trending words, using local list:",
+      error.message,
+    );
+  }
+
+  // Fallback: use the local Finnish word list
+  trendingWordsCache = words;
+  return words;
+}
+
 function getRandomSearchWord() {
-  return words[Math.floor(Math.random() * words.length)];
+  const pool =
+    Array.isArray(trendingWordsCache) && trendingWordsCache.length > 0
+      ? trendingWordsCache
+      : words;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function randomDelay() {
@@ -494,6 +563,9 @@ async function startSearches(type, settings) {
     await activeMobileAgent(tabId);
   }
 
+  // Fetch/refresh trending words before starting
+  await fetchTrendingWords();
+
   // Save state and start the first search
   await saveState();
   performSingleSearch();
@@ -513,6 +585,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 // Restore state on service worker startup
 chrome.runtime.onStartup.addListener(async () => {
+  fetchTrendingWords().catch(() => {}); // Pre-warm cache
   await loadState();
   if (searchState.isRunning) {
     // Resume searches
