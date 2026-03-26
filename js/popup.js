@@ -60,6 +60,20 @@ $(config.domElements.waitingBetweenSearchesFormMax).on("change", function () {
   localStorage.setItem("millisecondsMax", config.searches.millisecondsMax);
 });
 
+$(config.domElements.scheduleStartTimeForm).on("change", function () {
+  config.searches.scheduleStartTime = $(
+    config.domElements.scheduleStartTimeForm,
+  ).val();
+  localStorage.setItem("scheduleStartTime", config.searches.scheduleStartTime);
+});
+
+$(config.domElements.scheduleEndTimeForm).on("change", function () {
+  config.searches.scheduleEndTime = $(
+    config.domElements.scheduleEndTimeForm,
+  ).val();
+  localStorage.setItem("scheduleEndTime", config.searches.scheduleEndTime);
+});
+
 // Start search desktop
 $(config.domElements.desktopButton).on("click", async () => {
   startSearches("desktop");
@@ -95,6 +109,8 @@ async function startSearches(searchType) {
     mobileSearches: parseInt(config.searches.mobile),
     millisecondsMin: parseInt(config.searches.millisecondsMin),
     millisecondsMax: parseInt(config.searches.millisecondsMax),
+    scheduleStartTime: config.searches.scheduleStartTime || "",
+    scheduleEndTime: config.searches.scheduleEndTime || "",
   };
 
   chrome.runtime.sendMessage(
@@ -128,6 +144,14 @@ function setDefaultUI() {
     localStorage.getItem("millisecondsMin") || config.searches.millisecondsMin;
   config.searches.millisecondsMax =
     localStorage.getItem("millisecondsMax") || config.searches.millisecondsMax;
+  config.searches.scheduleStartTime =
+    localStorage.getItem("scheduleStartTime") !== null
+      ? localStorage.getItem("scheduleStartTime")
+      : config.searches.scheduleStartTime;
+  config.searches.scheduleEndTime =
+    localStorage.getItem("scheduleEndTime") !== null
+      ? localStorage.getItem("scheduleEndTime")
+      : config.searches.scheduleEndTime;
 
   // Set numberOfSearches default values inside the input
   $(config.domElements.totDesktopSearchesForm).val(config.searches.desktop);
@@ -137,6 +161,12 @@ function setDefaultUI() {
   );
   $(config.domElements.waitingBetweenSearchesFormMax).val(
     config.searches.millisecondsMax,
+  );
+  $(config.domElements.scheduleStartTimeForm).val(
+    config.searches.scheduleStartTime,
+  );
+  $(config.domElements.scheduleEndTimeForm).val(
+    config.searches.scheduleEndTime,
   );
 
   $(config.domElements.authorWebsiteLink).attr(
@@ -167,6 +197,8 @@ function deactivateForms() {
   $(config.domElements.totMobileSearchesForm).prop("disabled", true);
   $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", true);
   $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", true);
+  $(config.domElements.scheduleStartTimeForm).prop("disabled", true);
+  $(config.domElements.scheduleEndTimeForm).prop("disabled", true);
   $(config.domElements.stopButtonContainer).show();
 }
 
@@ -182,6 +214,8 @@ function activateForms() {
   $(config.domElements.totMobileSearchesForm).prop("disabled", false);
   $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", false);
   $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", false);
+  $(config.domElements.scheduleStartTimeForm).prop("disabled", false);
+  $(config.domElements.scheduleEndTimeForm).prop("disabled", false);
   $(config.domElements.stopButtonContainer).hide();
 }
 

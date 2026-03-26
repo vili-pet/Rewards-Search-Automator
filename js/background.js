@@ -54,6 +54,8 @@ const words = [
 
 // Trending words cache duration: 1 hour
 const TRENDS_CACHE_DURATION = 60 * 60 * 1000;
+// Fallback retry delay (minutes) used when the schedule start time is unexpectedly missing
+const SCHEDULE_FALLBACK_RETRY_MINUTES = 60;
 let trendingWordsCache = null;
 
 // Configuration
@@ -101,9 +103,11 @@ let searchState = {
   searchType: null, // 'desktop', 'mobile', 'desktopMobile'
   phase: null, // 'desktop', 'mobile'
   millisecondsMin: 120000,
-  millisecondsMax: 600000,
+  millisecondsMax: 3600000,
   desktopSearches: 3,
   mobileSearches: 3,
+  scheduleStartTime: "",
+  scheduleEndTime: "",
 };
 
 const ALARM_NAME = "searchAlarm";
@@ -199,6 +203,43 @@ function randomDelay() {
         1) +
       parseInt(searchState.millisecondsMin),
   );
+}
+
+// Return true if current local time is within the [startHHMM, endHHMM) window.
+// If either value is empty/missing, the window is treated as unrestricted and
+// the function always returns true (no schedule restriction).
+// When start equals end (e.g. "12:00"/"12:00") the window is also treated as
+// unrestricted (always returns true).
+function isWithinSchedule(startHHMM, endHHMM) {
+  if (!startHHMM || !endHHMM) return true;
+  const now = new Date();
+  const [startH, startM] = startHHMM.split(":").map(Number);
+  const [endH, endM] = endHHMM.split(":").map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const start = startH * 60 + startM;
+  const end = endH * 60 + endM;
+  if (start === end) {
+    return true; // Same start and end — treat as no restriction
+  }
+  if (start < end) {
+    return cur >= start && cur < end;
+  }
+  // Overnight window (e.g. 22:00–06:00)
+  return cur >= start || cur < end;
+}
+
+// Minutes until the schedule window opens next.
+// This function is only called after isWithinSchedule() returned false,
+// which guarantees startHHMM is non-empty; the guard is purely defensive.
+function minutesUntilScheduleStart(startHHMM) {
+  if (!startHHMM) return SCHEDULE_FALLBACK_RETRY_MINUTES; // Defensive: retry after 1 hour
+  const now = new Date();
+  const [startH, startM] = startHHMM.split(":").map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const start = startH * 60 + startM;
+  let diff = start - cur;
+  if (diff <= 0) diff += 24 * 60;
+  return diff;
 }
 
 function sleep(ms) {
@@ -395,6 +436,18 @@ function openAuthorWebsite() {
 async function performSingleSearch() {
   if (!searchState.isRunning) return;
 
+  // If outside the allowed time window, defer until the window opens
+  const { scheduleStartTime, scheduleEndTime } = searchState;
+  if (!isWithinSchedule(scheduleStartTime, scheduleEndTime)) {
+    const waitMinutes = minutesUntilScheduleStart(scheduleStartTime);
+    console.log(
+      `Outside schedule window. Next search in ${waitMinutes} minute(s) at ${scheduleStartTime}.`,
+    );
+    await saveState();
+    chrome.alarms.create(ALARM_NAME, { delayInMinutes: waitMinutes });
+    return;
+  }
+
   const searchUrl = config.bing.url
     .replace("{q}", encodeURIComponent(getRandomSearchWord()))
     .replace("{form}", config.bing.form)
@@ -555,6 +608,8 @@ async function startSearches(type, settings) {
     millisecondsMax: settings.millisecondsMax,
     desktopSearches: settings.desktopSearches,
     mobileSearches: settings.mobileSearches,
+    scheduleStartTime: settings.scheduleStartTime || "",
+    scheduleEndTime: settings.scheduleEndTime || "",
   };
 
   // Initialize mobile mode if needed

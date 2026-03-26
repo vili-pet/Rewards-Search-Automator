@@ -42,9 +42,11 @@ let config = {
 
   searches: {
     millisecondsMin: 120000,
-    millisecondsMax: 600000,
+    millisecondsMax: 3600000,
     desktop: 3,
     mobile: 3,
+    scheduleStartTime: "08:00",
+    scheduleEndTime: "23:00",
   },
 
   domElements: {
@@ -57,6 +59,8 @@ let config = {
     totMobileSearchesForm: "#totMobileSearchesForm",
     waitingBetweenSearchesFormMin: "#waitingBetweenSearchesFormMin",
     waitingBetweenSearchesFormMax: "#waitingBetweenSearchesFormMax",
+    scheduleStartTimeForm: "#scheduleStartTimeForm",
+    scheduleEndTimeForm: "#scheduleEndTimeForm",
     appVersion: "#appVersion",
     authorWebsiteLink: "#authorWebsiteLink",
     repositoryGithubLink: "#repositoryGithubLink",
