@@ -100,8 +100,8 @@ let searchState = {
   tabId: null,
   searchType: null, // 'desktop', 'mobile', 'desktopMobile'
   phase: null, // 'desktop', 'mobile'
-  millisecondsMin: 8000,
-  millisecondsMax: 10000,
+  millisecondsMin: 120000,
+  millisecondsMax: 600000,
   desktopSearches: 3,
   mobileSearches: 3,
 };
