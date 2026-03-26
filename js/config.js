@@ -47,6 +47,8 @@ let config = {
     mobile: 3,
     scheduleStartTime: "08:00",
     scheduleEndTime: "23:00",
+    autoStartEnabled: false,
+    autoStartTime: "18:00",
   },
 
   domElements: {
@@ -61,6 +63,8 @@ let config = {
     waitingBetweenSearchesFormMax: "#waitingBetweenSearchesFormMax",
     scheduleStartTimeForm: "#scheduleStartTimeForm",
     scheduleEndTimeForm: "#scheduleEndTimeForm",
+    autoStartEnabledForm: "#autoStartEnabledForm",
+    autoStartTimeForm: "#autoStartTimeForm",
     appVersion: "#appVersion",
     authorWebsiteLink: "#authorWebsiteLink",
     repositoryGithubLink: "#repositoryGithubLink",

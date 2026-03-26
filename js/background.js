@@ -56,6 +56,9 @@ const words = [
 const TRENDS_CACHE_DURATION = 60 * 60 * 1000;
 // Fallback retry delay (minutes) used when the schedule start time is unexpectedly missing
 const SCHEDULE_FALLBACK_RETRY_MINUTES = 60;
+
+const ALARM_NAME = "searchAlarm";
+const AUTO_START_ALARM = "autoStartAlarm";
 let trendingWordsCache = null;
 
 // Configuration
@@ -109,8 +112,6 @@ let searchState = {
   scheduleStartTime: "",
   scheduleEndTime: "",
 };
-
-const ALARM_NAME = "searchAlarm";
 
 // Save state to chrome.storage.local for persistence
 async function saveState() {
@@ -244,6 +245,59 @@ function minutesUntilScheduleStart(startHHMM) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Returns today's local date as "YYYY-MM-DD"
+function todayDateString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Returns true if searches have already been completed today
+async function hasCompletedToday() {
+  const result = await chrome.storage.local.get("lastCompletedDate");
+  return result.lastCompletedDate === todayDateString();
+}
+
+// (Re-)schedule the daily auto-start alarm from stored autoStartSettings.
+// Clears the alarm when auto-start is disabled or no time is configured.
+async function scheduleAutoStartAlarm() {
+  const stored = await chrome.storage.local.get("autoStartSettings");
+  const s = stored.autoStartSettings;
+
+  if (!s || !s.enabled || !s.time) {
+    chrome.alarms.clear(AUTO_START_ALARM);
+    return;
+  }
+
+  const timeRegex = /^\d{2}:\d{2}$/;
+  if (!timeRegex.test(s.time)) {
+    console.warn("Auto-start: invalid time format, expected HH:MM:", s.time);
+    chrome.alarms.clear(AUTO_START_ALARM);
+    return;
+  }
+
+  const [h, m] = s.time.split(":").map(Number);
+  if (h > 23 || m > 59) {
+    console.warn("Auto-start: time value out of range:", s.time);
+    chrome.alarms.clear(AUTO_START_ALARM);
+    return;
+  }
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(h, m, 0, 0);
+
+  // If the target time has already passed today, aim for tomorrow
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+
+  // periodInMinutes keeps the alarm recurring daily without manual rescheduling
+  chrome.alarms.create(AUTO_START_ALARM, {
+    when: target.getTime(),
+    periodInMinutes: 24 * 60,
+  });
+  console.log(`Auto-start alarm set for ${target.toLocaleTimeString()}.`);
 }
 
 async function getTabId() {
@@ -535,6 +589,9 @@ async function completeSearches() {
   searchState.isRunning = false;
   openAuthorWebsite();
 
+  // Record that searches were completed today so auto-start won't trigger again
+  await chrome.storage.local.set({ lastCompletedDate: todayDateString() });
+
   notifyPopup({
     type: "complete",
   });
@@ -636,11 +693,37 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       performSingleSearch();
     }
   }
+
+  if (alarm.name === AUTO_START_ALARM) {
+    // Skip if searches are already running
+    if (searchState.isRunning) return;
+
+    // Skip if searches were already completed today
+    const done = await hasCompletedToday();
+    if (done) return;
+
+    const stored = await chrome.storage.local.get("autoStartSettings");
+    const s = stored.autoStartSettings;
+    if (!s || !s.enabled) return;
+
+    console.log("Auto-start: starting searches automatically.");
+    startSearches(s.searchType || "desktopMobile", {
+      desktopSearches: s.desktopSearches ?? 3,
+      mobileSearches: s.mobileSearches ?? 3,
+      millisecondsMin: s.millisecondsMin ?? 120000,
+      millisecondsMax: s.millisecondsMax ?? 3600000,
+      scheduleStartTime: s.scheduleStartTime ?? "",
+      scheduleEndTime: s.scheduleEndTime ?? "",
+    }).catch((err) => {
+      console.error("Auto-start: failed to start searches:", err);
+    });
+  }
 });
 
 // Restore state on service worker startup
 chrome.runtime.onStartup.addListener(async () => {
   fetchTrendingWords().catch(() => {}); // Pre-warm cache
+  await scheduleAutoStartAlarm();
   await loadState();
   if (searchState.isRunning) {
     // Resume searches
@@ -650,6 +733,7 @@ chrome.runtime.onStartup.addListener(async () => {
 
 // Also check on install/update
 chrome.runtime.onInstalled.addListener(async () => {
+  await scheduleAutoStartAlarm();
   await loadState();
   if (searchState.isRunning) {
     performSingleSearch();
@@ -667,6 +751,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "stopSearches") {
     stopSearches().then(() => {
+      sendResponse({ success: true });
+    });
+    return true; // Indicates async response
+  }
+
+  if (message.type === "updateAutoStartSettings") {
+    chrome.storage.local.set({ autoStartSettings: message.settings }).then(() => {
+      scheduleAutoStartAlarm();
       sendResponse({ success: true });
     });
     return true; // Indicates async response
