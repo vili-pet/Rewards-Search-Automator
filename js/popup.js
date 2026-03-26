@@ -39,11 +39,13 @@ async function checkRunningState() {
 $(config.domElements.totDesktopSearchesForm).on("change", function () {
   config.searches.desktop = $(config.domElements.totDesktopSearchesForm).val();
   localStorage.setItem("desktopSearches", config.searches.desktop);
+  sendAutoStartSettingsToBackground();
 });
 
 $(config.domElements.totMobileSearchesForm).on("change", function () {
   config.searches.mobile = $(config.domElements.totMobileSearchesForm).val();
   localStorage.setItem("mobileSearches", config.searches.mobile);
+  sendAutoStartSettingsToBackground();
 });
 
 $(config.domElements.waitingBetweenSearchesFormMin).on("change", function () {
@@ -51,6 +53,7 @@ $(config.domElements.waitingBetweenSearchesFormMin).on("change", function () {
     config.domElements.waitingBetweenSearchesFormMin,
   ).val();
   localStorage.setItem("millisecondsMin", config.searches.millisecondsMin);
+  sendAutoStartSettingsToBackground();
 });
 
 $(config.domElements.waitingBetweenSearchesFormMax).on("change", function () {
@@ -58,6 +61,39 @@ $(config.domElements.waitingBetweenSearchesFormMax).on("change", function () {
     config.domElements.waitingBetweenSearchesFormMax,
   ).val();
   localStorage.setItem("millisecondsMax", config.searches.millisecondsMax);
+  sendAutoStartSettingsToBackground();
+});
+
+$(config.domElements.scheduleStartTimeForm).on("change", function () {
+  config.searches.scheduleStartTime = $(
+    config.domElements.scheduleStartTimeForm,
+  ).val();
+  localStorage.setItem("scheduleStartTime", config.searches.scheduleStartTime);
+  sendAutoStartSettingsToBackground();
+});
+
+$(config.domElements.scheduleEndTimeForm).on("change", function () {
+  config.searches.scheduleEndTime = $(
+    config.domElements.scheduleEndTimeForm,
+  ).val();
+  localStorage.setItem("scheduleEndTime", config.searches.scheduleEndTime);
+  sendAutoStartSettingsToBackground();
+});
+
+$(config.domElements.autoStartEnabledForm).on("change", function () {
+  config.searches.autoStartEnabled = $(
+    config.domElements.autoStartEnabledForm,
+  ).prop("checked");
+  localStorage.setItem("autoStartEnabled", config.searches.autoStartEnabled ? "true" : "false");
+  sendAutoStartSettingsToBackground();
+});
+
+$(config.domElements.autoStartTimeForm).on("change", function () {
+  config.searches.autoStartTime = $(
+    config.domElements.autoStartTimeForm,
+  ).val();
+  localStorage.setItem("autoStartTime", config.searches.autoStartTime);
+  sendAutoStartSettingsToBackground();
 });
 
 // Start search desktop
@@ -85,6 +121,28 @@ $(config.domElements.stopButton).on("click", async () => {
 });
 
 /**
+ * Send current search + auto-start settings to background so it can
+ * schedule (or cancel) the daily auto-start alarm correctly.
+ */
+function sendAutoStartSettingsToBackground() {
+  chrome.runtime.sendMessage({
+    type: "updateAutoStartSettings",
+    settings: {
+      enabled: config.searches.autoStartEnabled === true,
+      time: config.searches.autoStartTime || "",
+      // Auto-start always runs the full "desktopMobile" session
+      searchType: "desktopMobile",
+      desktopSearches: parseInt(config.searches.desktop),
+      mobileSearches: parseInt(config.searches.mobile),
+      millisecondsMin: parseInt(config.searches.millisecondsMin),
+      millisecondsMax: parseInt(config.searches.millisecondsMax),
+      scheduleStartTime: config.searches.scheduleStartTime || "",
+      scheduleEndTime: config.searches.scheduleEndTime || "",
+    },
+  }).catch(() => {});
+}
+
+/**
  * Start searches via background script
  */
 async function startSearches(searchType) {
@@ -95,6 +153,8 @@ async function startSearches(searchType) {
     mobileSearches: parseInt(config.searches.mobile),
     millisecondsMin: parseInt(config.searches.millisecondsMin),
     millisecondsMax: parseInt(config.searches.millisecondsMax),
+    scheduleStartTime: config.searches.scheduleStartTime || "",
+    scheduleEndTime: config.searches.scheduleEndTime || "",
   };
 
   chrome.runtime.sendMessage(
@@ -128,6 +188,22 @@ function setDefaultUI() {
     localStorage.getItem("millisecondsMin") || config.searches.millisecondsMin;
   config.searches.millisecondsMax =
     localStorage.getItem("millisecondsMax") || config.searches.millisecondsMax;
+  config.searches.scheduleStartTime =
+    localStorage.getItem("scheduleStartTime") !== null
+      ? localStorage.getItem("scheduleStartTime")
+      : config.searches.scheduleStartTime;
+  config.searches.scheduleEndTime =
+    localStorage.getItem("scheduleEndTime") !== null
+      ? localStorage.getItem("scheduleEndTime")
+      : config.searches.scheduleEndTime;
+  config.searches.autoStartEnabled =
+    localStorage.getItem("autoStartEnabled") !== null
+      ? localStorage.getItem("autoStartEnabled") === "true"
+      : config.searches.autoStartEnabled;
+  config.searches.autoStartTime =
+    localStorage.getItem("autoStartTime") !== null
+      ? localStorage.getItem("autoStartTime")
+      : config.searches.autoStartTime;
 
   // Set numberOfSearches default values inside the input
   $(config.domElements.totDesktopSearchesForm).val(config.searches.desktop);
@@ -138,6 +214,20 @@ function setDefaultUI() {
   $(config.domElements.waitingBetweenSearchesFormMax).val(
     config.searches.millisecondsMax,
   );
+  $(config.domElements.scheduleStartTimeForm).val(
+    config.searches.scheduleStartTime,
+  );
+  $(config.domElements.scheduleEndTimeForm).val(
+    config.searches.scheduleEndTime,
+  );
+  $(config.domElements.autoStartEnabledForm).prop(
+    "checked",
+    config.searches.autoStartEnabled === true,
+  );
+  $(config.domElements.autoStartTimeForm).val(config.searches.autoStartTime);
+
+  // Sync auto-start settings with background on popup open
+  sendAutoStartSettingsToBackground();
 
   $(config.domElements.authorWebsiteLink).attr(
     "href",
@@ -167,6 +257,10 @@ function deactivateForms() {
   $(config.domElements.totMobileSearchesForm).prop("disabled", true);
   $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", true);
   $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", true);
+  $(config.domElements.scheduleStartTimeForm).prop("disabled", true);
+  $(config.domElements.scheduleEndTimeForm).prop("disabled", true);
+  $(config.domElements.autoStartEnabledForm).prop("disabled", true);
+  $(config.domElements.autoStartTimeForm).prop("disabled", true);
   $(config.domElements.stopButtonContainer).show();
 }
 
@@ -182,6 +276,10 @@ function activateForms() {
   $(config.domElements.totMobileSearchesForm).prop("disabled", false);
   $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", false);
   $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", false);
+  $(config.domElements.scheduleStartTimeForm).prop("disabled", false);
+  $(config.domElements.scheduleEndTimeForm).prop("disabled", false);
+  $(config.domElements.autoStartEnabledForm).prop("disabled", false);
+  $(config.domElements.autoStartTimeForm).prop("disabled", false);
   $(config.domElements.stopButtonContainer).hide();
 }
 

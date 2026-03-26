@@ -41,10 +41,14 @@ let config = {
   },
 
   searches: {
-    millisecondsMin: 8000,
-    millisecondsMax: 10000,
+    millisecondsMin: 120000,
+    millisecondsMax: 3600000,
     desktop: 3,
     mobile: 3,
+    scheduleStartTime: "08:00",
+    scheduleEndTime: "23:00",
+    autoStartEnabled: false,
+    autoStartTime: "18:00",
   },
 
   domElements: {
@@ -57,6 +61,10 @@ let config = {
     totMobileSearchesForm: "#totMobileSearchesForm",
     waitingBetweenSearchesFormMin: "#waitingBetweenSearchesFormMin",
     waitingBetweenSearchesFormMax: "#waitingBetweenSearchesFormMax",
+    scheduleStartTimeForm: "#scheduleStartTimeForm",
+    scheduleEndTimeForm: "#scheduleEndTimeForm",
+    autoStartEnabledForm: "#autoStartEnabledForm",
+    autoStartTimeForm: "#autoStartTimeForm",
     appVersion: "#appVersion",
     authorWebsiteLink: "#authorWebsiteLink",
     repositoryGithubLink: "#repositoryGithubLink",

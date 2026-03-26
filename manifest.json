@@ -9,6 +9,7 @@
     "default_title": "Search Automator"
   },
   "permissions": ["debugger", "tabs", "alarms", "storage"],
+  "host_permissions": ["https://trends.google.com/*"],
   "icons": {
     "16": "img/icon16.png",
     "48": "img/icon48.png",
