@@ -132,10 +132,10 @@ function sendAutoStartSettingsToBackground() {
       time: config.searches.autoStartTime || "",
       // Auto-start always runs the full "desktopMobile" session
       searchType: "desktopMobile",
-      desktopSearches: parseInt(config.searches.desktop),
-      mobileSearches: parseInt(config.searches.mobile),
-      millisecondsMin: parseInt(config.searches.millisecondsMin),
-      millisecondsMax: parseInt(config.searches.millisecondsMax),
+      desktopSearches: parseInt(config.searches.desktop) || 3,
+      mobileSearches: parseInt(config.searches.mobile) || 3,
+      millisecondsMin: parseInt(config.searches.millisecondsMin) || 120000,
+      millisecondsMax: parseInt(config.searches.millisecondsMax) || 3600000,
       scheduleStartTime: config.searches.scheduleStartTime || "",
       scheduleEndTime: config.searches.scheduleEndTime || "",
     },
@@ -149,10 +149,10 @@ async function startSearches(searchType) {
   deactivateForms();
 
   const settings = {
-    desktopSearches: parseInt(config.searches.desktop),
-    mobileSearches: parseInt(config.searches.mobile),
-    millisecondsMin: parseInt(config.searches.millisecondsMin),
-    millisecondsMax: parseInt(config.searches.millisecondsMax),
+    desktopSearches: parseInt(config.searches.desktop) || 3,
+    mobileSearches: parseInt(config.searches.mobile) || 3,
+    millisecondsMin: parseInt(config.searches.millisecondsMin) || 120000,
+    millisecondsMax: parseInt(config.searches.millisecondsMax) || 3600000,
     scheduleStartTime: config.searches.scheduleStartTime || "",
     scheduleEndTime: config.searches.scheduleEndTime || "",
   };

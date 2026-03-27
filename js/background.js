@@ -131,8 +131,11 @@ async function loadState() {
 // Falls back to the local words list when the fetch fails.
 async function fetchTrendingWords() {
   // Return in-memory cache if still valid
-  if (trendingWordsCache) {
-    return trendingWordsCache;
+  if (
+    trendingWordsCache &&
+    Date.now() - trendingWordsCache.timestamp < TRENDS_CACHE_DURATION
+  ) {
+    return trendingWordsCache.terms;
   }
 
   // Check storage cache
@@ -145,7 +148,7 @@ async function fetchTrendingWords() {
     entry.terms.length > 0 &&
     Date.now() - entry.timestamp < TRENDS_CACHE_DURATION
   ) {
-    trendingWordsCache = entry.terms;
+    trendingWordsCache = { terms: entry.terms, timestamp: entry.timestamp };
     return entry.terms;
   }
 
@@ -169,9 +172,10 @@ async function fetchTrendingWords() {
       .filter((t) => t && t.length > 0);
 
     if (terms.length > 0) {
-      trendingWordsCache = terms;
+      const timestamp = Date.now();
+      trendingWordsCache = { terms, timestamp };
       await chrome.storage.local.set({
-        trendingWordsCache: { terms, timestamp: Date.now() },
+        trendingWordsCache: { terms, timestamp },
       });
       console.info(`Loaded ${terms.length} trending search terms from Google Trends.`);
       return terms;
@@ -184,26 +188,24 @@ async function fetchTrendingWords() {
   }
 
   // Fallback: use the local Finnish word list
-  trendingWordsCache = words;
+  trendingWordsCache = { terms: words, timestamp: Date.now() };
   return words;
 }
 
 function getRandomSearchWord() {
   const pool =
-    Array.isArray(trendingWordsCache) && trendingWordsCache.length > 0
-      ? trendingWordsCache
+    trendingWordsCache && Array.isArray(trendingWordsCache.terms) && trendingWordsCache.terms.length > 0
+      ? trendingWordsCache.terms
       : words;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function randomDelay() {
-  return Math.floor(
-    Math.random() *
-      (parseInt(searchState.millisecondsMax) -
-        parseInt(searchState.millisecondsMin) +
-        1) +
-      parseInt(searchState.millisecondsMin),
-  );
+  const min = parseInt(searchState.millisecondsMin);
+  const max = parseInt(searchState.millisecondsMax);
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  return Math.floor(Math.random() * (hi - lo + 1) + lo);
 }
 
 // Return true if current local time is within the [startHHMM, endHHMM) window.
@@ -301,11 +303,22 @@ async function scheduleAutoStartAlarm() {
 }
 
 async function getTabId() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      var activeTab = tabs[0];
-      var activeTabId = activeTab.id;
-      resolve(activeTabId);
+      if (tabs && tabs.length > 0 && tabs[0].id) {
+        resolve(tabs[0].id);
+      } else {
+        // No active tab found (e.g. auto-start triggered in background).
+        // Create a dedicated tab so we never hijack a user's page.
+        chrome.tabs.create({ url: "about:blank", active: false }, function (tab) {
+          if (chrome.runtime.lastError || !tab) {
+            console.warn("Could not create fallback tab:", chrome.runtime.lastError?.message);
+            resolve(null);
+            return;
+          }
+          resolve(tab.id);
+        });
+      }
     });
   });
 }
@@ -319,8 +332,13 @@ function notifyPopup(message) {
 
 // Enable debugger
 async function enableDebugger(tabId) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     chrome.debugger.attach({ tabId }, "1.2", function () {
+      if (chrome.runtime.lastError) {
+        console.warn(`Debugger attach error for tab ${tabId}:`, chrome.runtime.lastError.message);
+        resolve(false);
+        return;
+      }
       console.log(`Debugger enabled for tab: ${tabId}`);
       resolve(true);
     });
@@ -329,8 +347,13 @@ async function enableDebugger(tabId) {
 
 // Disable debugger
 async function disableDebugger(tabId) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     chrome.debugger.detach({ tabId }, function () {
+      if (chrome.runtime.lastError) {
+        console.warn(`Debugger detach error for tab ${tabId}:`, chrome.runtime.lastError.message);
+        resolve(false);
+        return;
+      }
       console.log(`Debugger disabled for tab: ${tabId}`);
       resolve(true);
     });
@@ -780,15 +803,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Close debugger in case is open when popup closes (fallback)
-chrome.runtime.onConnect.addListener(async function (port) {
+chrome.runtime.onConnect.addListener(function (port) {
   if (port.name === "popup") {
-    port.onDisconnect.addListener(async function () {
-      // Only detach debugger if searches are NOT running
-      // This allows searches to continue when popup closes
-      if (!searchState.isRunning) {
-        let tabId = await getTabId();
-        chrome.debugger.detach({ tabId }, function () {
-          console.log(`Debugger disabled for tab: ${tabId}`);
+    port.onDisconnect.addListener(function () {
+      // Only detach debugger if searches are NOT running and we have a known tab.
+      // Use the stored tabId — not the current active tab — to avoid detaching
+      // a debugger from the wrong tab.
+      if (!searchState.isRunning && searchState.tabId) {
+        chrome.debugger.detach({ tabId: searchState.tabId }, function () {
+          if (chrome.runtime.lastError) {
+            // Tab was closed or debugger was already detached; nothing to do.
+          }
         });
       }
     });
