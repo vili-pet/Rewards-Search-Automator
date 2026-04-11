@@ -48,7 +48,9 @@
 - Responsive layout
 
 ### 🔐 **Safe & Reliable**
-- Uses random word dictionary for diverse search queries
+- Uses multi-source trending topics (Google Trends FI + Bing trend feeds) for realistic search queries
+- Automatic fallback chain: fresh cache -> stale cache -> curated local topic list
+- Rotation guard reduces repeated terms across consecutive searches
 - Randomized timing to mimic human behavior
 - No data collection or tracking
 - Open-source and transparent
@@ -107,6 +109,12 @@ Mobile Searches: 3
 Min Delay: 8000ms (8 seconds)
 Max Delay: 10000ms (10 seconds)
 ```
+
+### Trend Topic Sources and Fallbacks
+- Primary sources: Google Trends (FI daily RSS), Bing News trending topics, and Bing suggestion feed
+- Results from all sources are normalized, deduplicated, and cached for 1 hour (`trendingWordsCache`)
+- If all providers fail, the extension first tries stale cache (up to 7 days), then a curated local Finnish topic list
+- Topic selection tracks recently used terms to avoid frequent repetition during a run
 
 ### Customization
 All settings can be adjusted in the popup before starting automation:

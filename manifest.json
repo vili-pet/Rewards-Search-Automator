@@ -9,7 +9,11 @@
     "default_title": "Search Automator"
   },
   "permissions": ["debugger", "tabs", "alarms", "storage"],
-  "host_permissions": ["https://trends.google.com/*"],
+  "host_permissions": [
+    "https://trends.google.com/*",
+    "https://api.bing.com/*",
+    "https://www.bing.com/*"
+  ],
   "icons": {
     "16": "img/icon16.png",
     "48": "img/icon48.png",

@@ -54,12 +54,19 @@ const words = [
 
 // Trending words cache duration: 1 hour
 const TRENDS_CACHE_DURATION = 60 * 60 * 1000;
+// Keep stale trend cache for fallback up to 7 days
+const TRENDS_STALE_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+// Prevent selecting the same terms too frequently
+const RECENT_TERMS_WINDOW = 12;
 // Fallback retry delay (minutes) used when the schedule start time is unexpectedly missing
 const SCHEDULE_FALLBACK_RETRY_MINUTES = 60;
+// Curated fallback topics when online sources are unavailable
+const QUALITY_FALLBACK_TOPICS = words.slice(0, 200);
 
 const ALARM_NAME = "searchAlarm";
 const AUTO_START_ALARM = "autoStartAlarm";
 let trendingWordsCache = null;
+let recentTerms = [];
 
 // Configuration
 const config = {
@@ -127,73 +134,164 @@ async function loadState() {
 }
 
 // Helper functions
-// Fetch daily trending searches from Google Trends (Finland) and cache for 1 hour.
-// Falls back to the local words list when the fetch fails.
+function normalizeTerms(terms) {
+  if (!Array.isArray(terms)) return [];
+
+  return [...new Set(
+    terms
+      .map((term) => (typeof term === "string" ? term.trim() : ""))
+      .filter((term) => term.length > 2)
+  )];
+}
+
+function parseGoogleTrendsRss(xml) {
+  const matches = [
+    ...xml.matchAll(
+      /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g,
+    ),
+  ];
+
+  return normalizeTerms(matches.slice(1).map((match) => match[1]));
+}
+
+function parseBingTrendingFeed(feed) {
+  if (!feed || !Array.isArray(feed.value)) return [];
+
+  return normalizeTerms(
+    feed.value.map((item) => {
+      if (typeof item?.name === "string" && item.name.trim()) return item.name;
+      if (typeof item?.query?.text === "string" && item.query.text.trim()) {
+        return item.query.text;
+      }
+      return "";
+    }),
+  );
+}
+
+function pickLeastRecentTerm(pool) {
+  if (!Array.isArray(pool) || pool.length === 0) {
+    return QUALITY_FALLBACK_TOPICS[Math.floor(Math.random() * QUALITY_FALLBACK_TOPICS.length)];
+  }
+
+  const available = pool.filter((term) => !recentTerms.includes(term));
+  const source = available.length > 0 ? available : pool;
+  const selected = source[Math.floor(Math.random() * source.length)];
+
+  recentTerms.push(selected);
+  if (recentTerms.length > RECENT_TERMS_WINDOW) {
+    recentTerms = recentTerms.slice(recentTerms.length - RECENT_TERMS_WINDOW);
+  }
+
+  return selected;
+}
+
+async function fetchGoogleTrendsTopics() {
+  const response = await fetch(
+    "https://trends.google.com/trends/trendingsearches/daily/rss?geo=FI",
+    { signal: AbortSignal.timeout(8000) },
+  );
+  if (!response.ok) throw new Error(`Google Trends HTTP ${response.status}`);
+
+  const xml = await response.text();
+  const terms = parseGoogleTrendsRss(xml);
+  if (terms.length === 0) throw new Error("Google Trends returned no terms");
+
+  return terms;
+}
+
+async function fetchBingTrendingTopics() {
+  const response = await fetch("https://api.bing.com/osjson.aspx?query=", {
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`Bing suggestions HTTP ${response.status}`);
+
+  const payload = await response.json();
+  const terms = normalizeTerms(Array.isArray(payload?.[1]) ? payload[1] : []);
+  if (terms.length === 0) throw new Error("Bing suggestions returned no terms");
+
+  return terms;
+}
+
+async function fetchBingNewsTopics() {
+  const response = await fetch("https://www.bing.com/news/trendingtopics?form=Z9LH", {
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`Bing News HTTP ${response.status}`);
+
+  const payload = await response.json();
+  const terms = parseBingTrendingFeed(payload);
+  if (terms.length === 0) throw new Error("Bing news feed returned no terms");
+
+  return terms;
+}
+
+// Fetch trending searches and cache for 1 hour.
+// Source priority: Google Trends FI + Bing News trends + Bing suggestions.
+// Fallback priority: fresh cache -> stale cache -> curated local topics.
 async function fetchTrendingWords() {
-  // Return in-memory cache if still valid
-  if (trendingWordsCache) {
+  if (Array.isArray(trendingWordsCache) && trendingWordsCache.length > 0) {
     return trendingWordsCache;
   }
 
-  // Check storage cache
   const cached = await chrome.storage.local.get("trendingWordsCache");
   const entry = cached.trendingWordsCache;
-  if (
+  const hasCache =
     entry &&
     Array.isArray(entry.terms) &&
     typeof entry.timestamp === "number" &&
-    entry.terms.length > 0 &&
-    Date.now() - entry.timestamp < TRENDS_CACHE_DURATION
-  ) {
+    entry.terms.length > 0;
+
+  if (hasCache && Date.now() - entry.timestamp < TRENDS_CACHE_DURATION) {
     trendingWordsCache = entry.terms;
     return entry.terms;
   }
 
-  try {
-    const response = await fetch(
-      "https://trends.google.com/trends/trendingsearches/daily/rss?geo=FI",
-      { signal: AbortSignal.timeout(8000) },
-    );
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const xml = await response.text();
+  const aggregated = [];
 
-    // Extract <title> content from RSS items (skip first which is the channel title)
-    const matches = [
-      ...xml.matchAll(
-        /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g,
-      ),
-    ];
-    const terms = matches
-      .slice(1)
-      .map((m) => m[1]?.trim())
-      .filter((t) => t && t.length > 0);
+  const providers = [
+    { name: "googleTrends", fetcher: fetchGoogleTrendsTopics },
+    { name: "bingNews", fetcher: fetchBingNewsTopics },
+    { name: "bingSuggestions", fetcher: fetchBingTrendingTopics },
+  ];
 
-    if (terms.length > 0) {
-      trendingWordsCache = terms;
-      await chrome.storage.local.set({
-        trendingWordsCache: { terms, timestamp: Date.now() },
-      });
-      console.info(`Loaded ${terms.length} trending search terms from Google Trends.`);
-      return terms;
+  for (const provider of providers) {
+    try {
+      const terms = await provider.fetcher();
+      aggregated.push(...terms);
+      console.info(`Loaded ${terms.length} terms from ${provider.name}.`);
+    } catch (error) {
+      console.warn(`Trending provider ${provider.name} failed:`, error.message);
     }
-  } catch (error) {
-    console.log(
-      "Could not fetch trending words, using local list:",
-      error.message,
-    );
   }
 
-  // Fallback: use the local Finnish word list
-  trendingWordsCache = words;
-  return words;
+  const mergedTerms = normalizeTerms(aggregated);
+
+  if (mergedTerms.length > 0) {
+    trendingWordsCache = mergedTerms;
+    await chrome.storage.local.set({
+      trendingWordsCache: { terms: mergedTerms, timestamp: Date.now() },
+    });
+    return mergedTerms;
+  }
+
+  if (hasCache && Date.now() - entry.timestamp < TRENDS_STALE_CACHE_MAX_AGE) {
+    console.warn("Using stale trending cache due to provider errors.");
+    trendingWordsCache = entry.terms;
+    return entry.terms;
+  }
+
+  console.warn("Using curated fallback topics due to unavailable trend providers.");
+  trendingWordsCache = QUALITY_FALLBACK_TOPICS;
+  return QUALITY_FALLBACK_TOPICS;
 }
 
 function getRandomSearchWord() {
   const pool =
     Array.isArray(trendingWordsCache) && trendingWordsCache.length > 0
       ? trendingWordsCache
-      : words;
-  return pool[Math.floor(Math.random() * pool.length)];
+      : QUALITY_FALLBACK_TOPICS;
+
+  return pickLeastRecentTerm(pool);
 }
 
 function randomDelay() {
