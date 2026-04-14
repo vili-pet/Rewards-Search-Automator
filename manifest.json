@@ -12,7 +12,9 @@
   "host_permissions": [
     "https://trends.google.com/*",
     "https://api.bing.com/*",
-    "https://www.bing.com/*"
+    "https://www.bing.com/*",
+    "https://feeds.yle.fi/*",
+    "https://fi.wikipedia.org/*"
   ],
   "icons": {
     "16": "img/icon16.png",
