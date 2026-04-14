@@ -19,7 +19,9 @@ function main() {
 
   assert(
     background.includes("fetchGoogleTrendsTopics") &&
+      background.includes("fetchYleNewsTopics") &&
       background.includes("fetchBingNewsTopics") &&
+      background.includes("fetchWikipediaTrendingTopics") &&
       background.includes("fetchBingTrendingTopics"),
     "Trending sources are not fully configured in background.js",
   );
@@ -40,7 +42,9 @@ function main() {
   assert(
     hostPermissions.includes("https://trends.google.com/*") &&
       hostPermissions.includes("https://api.bing.com/*") &&
-      hostPermissions.includes("https://www.bing.com/*"),
+      hostPermissions.includes("https://www.bing.com/*") &&
+      hostPermissions.includes("https://feeds.yle.fi/*") &&
+      hostPermissions.includes("https://fi.wikipedia.org/*"),
     "Manifest host permissions for trend providers are incomplete",
   );
 
