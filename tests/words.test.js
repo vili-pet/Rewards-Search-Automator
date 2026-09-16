@@ -14,9 +14,9 @@ describe("bundled suggestion list", () => {
   });
 
   it("can produce a stable daily shortlist", () => {
-    const terms = suggestTerms(words, { dateKey: "2026-09-16", offset: 0, count: 8 });
-    assert.equal(terms.length, 8);
-    assert.equal(new Set(terms).size, 8);
+    const terms = suggestTerms(words, { dateKey: "2026-09-16", offset: 0, count: 5 });
+    assert.equal(terms.length, 5);
+    assert.equal(new Set(terms).size, 5);
     assert.ok(terms.every((term) => uniqueSanitizedTerms(words).includes(term)));
   });
 });

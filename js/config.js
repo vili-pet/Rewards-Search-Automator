@@ -9,7 +9,7 @@ const config = {
     rewardsLink: "https://rewards.microsoft.com/",
   },
   suggestions: {
-    count: 8,
+    count: 5,
   },
 };
 

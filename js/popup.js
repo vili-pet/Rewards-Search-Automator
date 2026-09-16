@@ -187,7 +187,7 @@ function renderSuggestions() {
 
   setText(
     elements.suggestionStatus,
-    "Local suggestions only. Copy a phrase and search yourself if you choose to. This helper never opens Bing or sends queries.",
+    "Local copy-only phrases. This helper never opens Bing or sends queries.",
   );
 }
 

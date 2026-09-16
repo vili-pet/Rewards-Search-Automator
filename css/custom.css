@@ -23,12 +23,12 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     margin: 0;
-    padding: 16px 0 64px;
+    padding: 10px 0 58px;
 }
 
 .app-header {
     color: white;
-    padding: 0 0 12px 0;
+    padding: 0 0 8px 0;
 }
 
 .header-icon {
@@ -56,8 +56,8 @@ body {
     background: rgba(255, 255, 255, 0.14);
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: var(--radius-md);
-    padding: 10px 12px;
-    margin-bottom: 10px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
     color: white;
 }
 
@@ -136,10 +136,18 @@ body {
     font-weight: 600;
 }
 
+.panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
 .panel-title {
     font-size: 13px;
     font-weight: 700;
-    margin: 0 0 4px;
+    margin: 0;
 }
 
 .panel-help {
@@ -226,9 +234,12 @@ body {
 }
 
 .suggestion-text {
+    flex: 1;
+    min-width: 0;
     font-size: 12px;
     font-weight: 600;
     line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .app-footer {

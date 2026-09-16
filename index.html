@@ -22,9 +22,8 @@
     <div class="container-fluid px-3">
         <section class="notice-card" role="note">
             <p>
-                You are responsible for following Microsoft Rewards rules.
-                This helper does not run searches, click, navigate, or send traffic,
-                and it does not certify that any use is allowed by the rewards program.
+                You are responsible for Rewards rules. This helper never searches,
+                clicks, or sends traffic, and it does not certify that any use is allowed.
             </p>
         </section>
 
@@ -92,7 +91,7 @@
             </div>
 
             <label class="form-label" for="notes">Notes</label>
-            <textarea class="form-control form-control-sm" id="notes" rows="2" maxlength="400"
+            <textarea class="form-control form-control-sm" id="notes" rows="1" maxlength="400"
                 placeholder="Optional local note for today"></textarea>
 
             <div class="panel-actions">
@@ -102,12 +101,14 @@
         </section>
 
         <section class="panel" aria-labelledby="suggestHeading">
-            <h2 class="panel-title" id="suggestHeading">Suggested phrases</h2>
+            <div class="panel-heading">
+                <h2 class="panel-title" id="suggestHeading">Suggested phrases</h2>
+                <button type="button" class="btn btn-outline-light btn-sm" id="refreshSuggestions">
+                    New local list
+                </button>
+            </div>
             <p class="panel-help" id="suggestionStatus"></p>
             <ul class="suggestion-list" id="suggestionList"></ul>
-            <button type="button" class="btn btn-outline-light btn-sm w-100" id="refreshSuggestions">
-                New local suggestions
-            </button>
         </section>
     </div>
 

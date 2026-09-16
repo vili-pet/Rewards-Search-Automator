@@ -53,7 +53,7 @@ describe("compliance mode packaging", () => {
 
   it("identifies itself as a non-automating helper", () => {
     assert.match(html, /Compliance mode/);
-    assert.match(html, /does not run searches/);
+    assert.match(html, /never searches/);
     assert.match(read("README.md"), /does not automate searches/i);
   });
 });
