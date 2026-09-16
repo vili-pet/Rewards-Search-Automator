@@ -1,293 +1,302 @@
 import config from "./config.js";
+import words from "../data/words.js";
+import { getCurrentTimeZone } from "./lib/date.js";
+import {
+  applyUserUpdate,
+  computeStatus,
+  incrementCounter,
+  LEGACY_EXTENSION_STORAGE_KEYS,
+  LEGACY_LOCAL_STORAGE_KEYS,
+  normalizeProgress,
+  STORAGE_KEY,
+} from "./lib/progress.js";
+import { sanitizeInteger, sanitizePlainText, sanitizeSearchTerm } from "./lib/sanitize.js";
+import { suggestTerms } from "./lib/suggestions.js";
 
-chrome.runtime.connect({ name: "popup" });
+const storage = {
+  async get(keys) {
+    if (globalThis.chrome?.storage?.local?.get) {
+      return chrome.storage.local.get(keys);
+    }
+    return {};
+  },
+  async set(record) {
+    if (globalThis.chrome?.storage?.local?.set) {
+      await chrome.storage.local.set(record);
+    }
+  },
+  async remove(keys) {
+    if (globalThis.chrome?.storage?.local?.remove) {
+      await chrome.storage.local.remove(keys);
+    }
+  },
+};
 
-// Progressbar object
-var progressBar = document.querySelector(config.domElements.progressBar);
+const elements = {
+  appVersion: document.getElementById("appVersion"),
+  todayDate: document.getElementById("todayDate"),
+  todayZone: document.getElementById("todayZone"),
+  resetNotice: document.getElementById("resetNotice"),
+  missingSummary: document.getElementById("missingSummary"),
+  progressBar: document.getElementById("progressBar"),
+  progressLabel: document.getElementById("progressLabel"),
+  completeBadge: document.getElementById("completeBadge"),
+  pointsEarned: document.getElementById("pointsEarned"),
+  dailyPointsGoal: document.getElementById("dailyPointsGoal"),
+  desktopSearchesDone: document.getElementById("desktopSearchesDone"),
+  desktopSearchGoal: document.getElementById("desktopSearchGoal"),
+  mobileSearchesDone: document.getElementById("mobileSearchesDone"),
+  mobileSearchGoal: document.getElementById("mobileSearchGoal"),
+  notes: document.getElementById("notes"),
+  suggestionList: document.getElementById("suggestionList"),
+  suggestionStatus: document.getElementById("suggestionStatus"),
+  saveStatus: document.getElementById("saveStatus"),
+};
 
-setDefaultUI();
-checkRunningState();
+let progress = null;
+let saveTimer = null;
 
-// Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "progress") {
-    setProgress(message.progress);
-  } else if (message.type === "phaseChange") {
-    console.log(`Phase changed to: ${message.phase}`);
-  } else if (message.type === "complete") {
-    setProgress(0);
-    activateForms();
-  } else if (message.type === "stopped") {
-    setProgress(0);
-    activateForms();
+function setText(node, value) {
+  if (node) {
+    node.textContent = String(value ?? "");
   }
-});
-
-// Check if searches are already running when popup opens
-async function checkRunningState() {
-  chrome.runtime.sendMessage({ type: "getState" }, (response) => {
-    if (response && response.isRunning) {
-      deactivateForms();
-      const progress = parseInt(
-        (response.currentSearch / response.totalSearches) * 100,
-      );
-      setProgress(progress);
-    }
-  });
 }
 
-$(config.domElements.totDesktopSearchesForm).on("change", function () {
-  config.searches.desktop = $(config.domElements.totDesktopSearchesForm).val();
-  localStorage.setItem("desktopSearches", config.searches.desktop);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.totMobileSearchesForm).on("change", function () {
-  config.searches.mobile = $(config.domElements.totMobileSearchesForm).val();
-  localStorage.setItem("mobileSearches", config.searches.mobile);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.waitingBetweenSearchesFormMin).on("change", function () {
-  config.searches.millisecondsMin = $(
-    config.domElements.waitingBetweenSearchesFormMin,
-  ).val();
-  localStorage.setItem("millisecondsMin", config.searches.millisecondsMin);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.waitingBetweenSearchesFormMax).on("change", function () {
-  config.searches.millisecondsMax = $(
-    config.domElements.waitingBetweenSearchesFormMax,
-  ).val();
-  localStorage.setItem("millisecondsMax", config.searches.millisecondsMax);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.scheduleStartTimeForm).on("change", function () {
-  config.searches.scheduleStartTime = $(
-    config.domElements.scheduleStartTimeForm,
-  ).val();
-  localStorage.setItem("scheduleStartTime", config.searches.scheduleStartTime);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.scheduleEndTimeForm).on("change", function () {
-  config.searches.scheduleEndTime = $(
-    config.domElements.scheduleEndTimeForm,
-  ).val();
-  localStorage.setItem("scheduleEndTime", config.searches.scheduleEndTime);
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.autoStartEnabledForm).on("change", function () {
-  config.searches.autoStartEnabled = $(
-    config.domElements.autoStartEnabledForm,
-  ).prop("checked");
-  localStorage.setItem("autoStartEnabled", config.searches.autoStartEnabled ? "true" : "false");
-  sendAutoStartSettingsToBackground();
-});
-
-$(config.domElements.autoStartTimeForm).on("change", function () {
-  config.searches.autoStartTime = $(
-    config.domElements.autoStartTimeForm,
-  ).val();
-  localStorage.setItem("autoStartTime", config.searches.autoStartTime);
-  sendAutoStartSettingsToBackground();
-});
-
-// Start search desktop
-$(config.domElements.desktopButton).on("click", async () => {
-  startSearches("desktop");
-});
-
-// Start search mobile
-$(config.domElements.mobileButton).on("click", async () => {
-  startSearches("mobile");
-});
-
-// Start search desktop&mobile
-$(config.domElements.desktopMobileButton).on("click", async () => {
-  startSearches("desktopMobile");
-});
-
-// Stop searches
-$(config.domElements.stopButton).on("click", async () => {
-  chrome.runtime.sendMessage({ type: "stopSearches" }, (response) => {
-    if (response && response.success) {
-      console.log("Searches stopped successfully");
-    }
-  });
-});
-
-/**
- * Send current search + auto-start settings to background so it can
- * schedule (or cancel) the daily auto-start alarm correctly.
- */
-function sendAutoStartSettingsToBackground() {
-  chrome.runtime.sendMessage({
-    type: "updateAutoStartSettings",
-    settings: {
-      enabled: config.searches.autoStartEnabled === true,
-      time: config.searches.autoStartTime || "",
-      // Auto-start always runs the full "desktopMobile" session
-      searchType: "desktopMobile",
-      desktopSearches: parseInt(config.searches.desktop),
-      mobileSearches: parseInt(config.searches.mobile),
-      millisecondsMin: parseInt(config.searches.millisecondsMin),
-      millisecondsMax: parseInt(config.searches.millisecondsMax),
-      scheduleStartTime: config.searches.scheduleStartTime || "",
-      scheduleEndTime: config.searches.scheduleEndTime || "",
-    },
-  }).catch(() => {});
+function wipeLegacyBrowserStorage() {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+  for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
 }
 
-/**
- * Start searches via background script
- */
-async function startSearches(searchType) {
-  deactivateForms();
+async function wipeLegacyExtensionStorage() {
+  const leftover = await storage.get(LEGACY_EXTENSION_STORAGE_KEYS);
+  const keys = Object.keys(leftover);
+  if (keys.length > 0) {
+    await storage.remove(keys);
+  }
+}
 
-  const settings = {
-    desktopSearches: parseInt(config.searches.desktop),
-    mobileSearches: parseInt(config.searches.mobile),
-    millisecondsMin: parseInt(config.searches.millisecondsMin),
-    millisecondsMax: parseInt(config.searches.millisecondsMax),
-    scheduleStartTime: config.searches.scheduleStartTime || "",
-    scheduleEndTime: config.searches.scheduleEndTime || "",
-  };
+async function persist() {
+  if (!progress) {
+    return;
+  }
+  await storage.set({ [STORAGE_KEY]: progress });
+  setText(elements.saveStatus, "Saved on this device only.");
+}
 
-  chrome.runtime.sendMessage(
-    {
-      type: "startSearches",
-      searchType: searchType,
-      settings: settings,
-    },
-    (response) => {
-      if (!response || !response.success) {
-        console.error("Failed to start searches:", response?.error);
-        activateForms();
+function schedulePersist() {
+  setText(elements.saveStatus, "Saving…");
+  globalThis.clearTimeout(saveTimer);
+  saveTimer = globalThis.setTimeout(() => {
+    persist().catch(() => {
+      setText(elements.saveStatus, "Could not save locally.");
+    });
+  }, 200);
+}
+
+function renderStatus() {
+  const status = computeStatus(progress);
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date());
+
+  setText(elements.todayDate, dateLabel);
+  setText(elements.todayZone, progress.timeZone || getCurrentTimeZone());
+  setText(elements.progressLabel, `${status.percent}%`);
+  if (elements.progressBar) {
+    elements.progressBar.style.width = `${status.percent}%`;
+    elements.progressBar.setAttribute("aria-valuenow", String(status.percent));
+  }
+
+  const missingBits = [];
+  missingBits.push(
+    status.missingPoints === 0 ? "Point goal met" : `${status.missingPoints} points remaining`,
+  );
+  missingBits.push(
+    status.remainingDesktop === 0
+      ? "desktop goal met"
+      : `${status.remainingDesktop} desktop searches remaining`,
+  );
+  missingBits.push(
+    status.remainingMobile === 0
+      ? "mobile goal met"
+      : `${status.remainingMobile} mobile searches remaining`,
+  );
+  setText(elements.missingSummary, missingBits.join(" · "));
+  if (elements.completeBadge) {
+    elements.completeBadge.hidden = !status.isComplete;
+  }
+}
+
+function renderForm() {
+  elements.pointsEarned.value = String(progress.pointsEarned);
+  elements.dailyPointsGoal.value = String(progress.dailyPointsGoal);
+  elements.desktopSearchesDone.value = String(progress.desktopSearchesDone);
+  elements.desktopSearchGoal.value = String(progress.desktopSearchGoal);
+  elements.mobileSearchesDone.value = String(progress.mobileSearchesDone);
+  elements.mobileSearchGoal.value = String(progress.mobileSearchGoal);
+  elements.notes.value = progress.notes;
+}
+
+function renderSuggestions() {
+  const terms = suggestTerms(words, {
+    dateKey: progress.dateKey,
+    offset: progress.suggestionOffset,
+    count: config.suggestions.count,
+  });
+  elements.suggestionList.replaceChildren();
+
+  for (const term of terms) {
+    const safe = sanitizeSearchTerm(term);
+    if (!safe) {
+      continue;
+    }
+
+    const item = document.createElement("li");
+    item.className = "suggestion-item";
+
+    const text = document.createElement("span");
+    text.className = "suggestion-text";
+    text.textContent = safe;
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "btn-copy";
+    copy.textContent = "Copy";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(safe);
+        copy.textContent = "Copied";
+        globalThis.setTimeout(() => {
+          copy.textContent = "Copy";
+        }, 1200);
+      } catch {
+        copy.textContent = "Copy failed";
       }
-    },
+    });
+
+    item.append(text, copy);
+    elements.suggestionList.append(item);
+  }
+
+  setText(
+    elements.suggestionStatus,
+    "Local copy-only phrases. This helper never opens Bing or sends queries.",
   );
 }
 
-/**
- * Set links on bottom navbar and forms
- */
-function setDefaultUI() {
-  // Set the app version number
-  $(config.domElements.appVersion).html(config.general.appVersion);
-
-  // Load saved values from localStorage or use defaults
-  config.searches.desktop =
-    localStorage.getItem("desktopSearches") || config.searches.desktop;
-  config.searches.mobile =
-    localStorage.getItem("mobileSearches") || config.searches.mobile;
-  config.searches.millisecondsMin =
-    localStorage.getItem("millisecondsMin") || config.searches.millisecondsMin;
-  config.searches.millisecondsMax =
-    localStorage.getItem("millisecondsMax") || config.searches.millisecondsMax;
-  config.searches.scheduleStartTime =
-    localStorage.getItem("scheduleStartTime") !== null
-      ? localStorage.getItem("scheduleStartTime")
-      : config.searches.scheduleStartTime;
-  config.searches.scheduleEndTime =
-    localStorage.getItem("scheduleEndTime") !== null
-      ? localStorage.getItem("scheduleEndTime")
-      : config.searches.scheduleEndTime;
-  config.searches.autoStartEnabled =
-    localStorage.getItem("autoStartEnabled") !== null
-      ? localStorage.getItem("autoStartEnabled") === "true"
-      : config.searches.autoStartEnabled;
-  config.searches.autoStartTime =
-    localStorage.getItem("autoStartTime") !== null
-      ? localStorage.getItem("autoStartTime")
-      : config.searches.autoStartTime;
-
-  // Set numberOfSearches default values inside the input
-  $(config.domElements.totDesktopSearchesForm).val(config.searches.desktop);
-  $(config.domElements.totMobileSearchesForm).val(config.searches.mobile);
-  $(config.domElements.waitingBetweenSearchesFormMin).val(
-    config.searches.millisecondsMin,
-  );
-  $(config.domElements.waitingBetweenSearchesFormMax).val(
-    config.searches.millisecondsMax,
-  );
-  $(config.domElements.scheduleStartTimeForm).val(
-    config.searches.scheduleStartTime,
-  );
-  $(config.domElements.scheduleEndTimeForm).val(
-    config.searches.scheduleEndTime,
-  );
-  $(config.domElements.autoStartEnabledForm).prop(
-    "checked",
-    config.searches.autoStartEnabled === true,
-  );
-  $(config.domElements.autoStartTimeForm).val(config.searches.autoStartTime);
-
-  // Sync auto-start settings with background on popup open
-  sendAutoStartSettingsToBackground();
-
-  $(config.domElements.authorWebsiteLink).attr(
-    "href",
-    config.general.authorWebsiteLinkThanks[0],
-  );
-  $(config.domElements.repositoryGithubLink).attr(
-    "href",
-    config.general.repositoryGithubLink,
-  );
-  $(config.domElements.storeLink).attr("href", config.general.storeLink);
-  $(config.domElements.rewardsLink).attr("href", config.general.rewardsLink);
-  $(config.domElements.f1PromoLink).attr(
-    "href",
-    config.general.authorWebsiteLinkThanks[1],
-  );
+function renderAll() {
+  renderForm();
+  renderStatus();
+  renderSuggestions();
 }
 
-/**
- * Deactivate Make search button
- * and Number of Search form
- */
-function deactivateForms() {
-  $(config.domElements.desktopButton).prop("disabled", true).hide();
-  $(config.domElements.mobileButton).prop("disabled", true).hide();
-  $(config.domElements.desktopMobileButton).prop("disabled", true).hide();
-  $(config.domElements.totDesktopSearchesForm).prop("disabled", true);
-  $(config.domElements.totMobileSearchesForm).prop("disabled", true);
-  $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", true);
-  $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", true);
-  $(config.domElements.scheduleStartTimeForm).prop("disabled", true);
-  $(config.domElements.scheduleEndTimeForm).prop("disabled", true);
-  $(config.domElements.autoStartEnabledForm).prop("disabled", true);
-  $(config.domElements.autoStartTimeForm).prop("disabled", true);
-  $(config.domElements.stopButtonContainer).show();
+function readFormPatch() {
+  return {
+    pointsEarned: sanitizeInteger(elements.pointsEarned.value),
+    dailyPointsGoal: sanitizeInteger(elements.dailyPointsGoal.value),
+    desktopSearchesDone: sanitizeInteger(elements.desktopSearchesDone.value),
+    desktopSearchGoal: sanitizeInteger(elements.desktopSearchGoal.value),
+    mobileSearchesDone: sanitizeInteger(elements.mobileSearchesDone.value),
+    mobileSearchGoal: sanitizeInteger(elements.mobileSearchGoal.value),
+    notes: sanitizePlainText(elements.notes.value),
+  };
 }
 
-/**
- * Activate Make search button
- * and Number of Search form
- */
-function activateForms() {
-  $(config.domElements.desktopButton).prop("disabled", false).show();
-  $(config.domElements.mobileButton).prop("disabled", false).show();
-  $(config.domElements.desktopMobileButton).prop("disabled", false).show();
-  $(config.domElements.totDesktopSearchesForm).prop("disabled", false);
-  $(config.domElements.totMobileSearchesForm).prop("disabled", false);
-  $(config.domElements.waitingBetweenSearchesFormMin).prop("disabled", false);
-  $(config.domElements.waitingBetweenSearchesFormMax).prop("disabled", false);
-  $(config.domElements.scheduleStartTimeForm).prop("disabled", false);
-  $(config.domElements.scheduleEndTimeForm).prop("disabled", false);
-  $(config.domElements.autoStartEnabledForm).prop("disabled", false);
-  $(config.domElements.autoStartTimeForm).prop("disabled", false);
-  $(config.domElements.stopButtonContainer).hide();
+function applyPatch(patch) {
+  progress = applyUserUpdate(progress, patch);
+  renderAll();
+  schedulePersist();
 }
 
-/**
- * Update progressbar value
- * @param {*} value
- */
-function setProgress(value) {
-  progressBar.style.width = value + "%";
-  progressBar.innerText = value + "%";
+function bindForm() {
+  const numericIds = [
+    "pointsEarned",
+    "dailyPointsGoal",
+    "desktopSearchesDone",
+    "desktopSearchGoal",
+    "mobileSearchesDone",
+    "mobileSearchGoal",
+  ];
+  for (const id of numericIds) {
+    elements[id].addEventListener("change", () => applyPatch(readFormPatch()));
+  }
+  elements.notes.addEventListener("change", () => applyPatch(readFormPatch()));
+
+  document.querySelectorAll("[data-increment]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const field = button.getAttribute("data-increment");
+      progress = incrementCounter(progress, field, 1);
+      renderAll();
+      schedulePersist();
+    });
+  });
+
+  document.getElementById("resetToday").addEventListener("click", () => {
+    const { progress: next } = normalizeProgress(
+      {
+        ...progress,
+        dateKey: "1970-01-01",
+      },
+      new Date(),
+      progress.timeZone,
+    );
+    progress = applyUserUpdate(next, {
+      dailyPointsGoal: progress.dailyPointsGoal,
+      desktopSearchGoal: progress.desktopSearchGoal,
+      mobileSearchGoal: progress.mobileSearchGoal,
+    });
+    setText(elements.resetNotice, "Today’s counters were cleared. Goals were kept.");
+    renderAll();
+    schedulePersist();
+  });
+
+  document.getElementById("refreshSuggestions").addEventListener("click", () => {
+    applyPatch({ suggestionOffset: progress.suggestionOffset + 1 });
+  });
 }
+
+function bindStaticLinks() {
+  const links = {
+    authorWebsiteLink: config.general.authorWebsiteLink,
+    repositoryGithubLink: config.general.repositoryGithubLink,
+    storeLink: config.general.storeLink,
+    rewardsLink: config.general.rewardsLink,
+  };
+  for (const [id, href] of Object.entries(links)) {
+    const node = document.getElementById(id);
+    if (node) {
+      node.setAttribute("href", href);
+      node.setAttribute("rel", "noopener noreferrer");
+      node.setAttribute("target", "_blank");
+    }
+  }
+  setText(elements.appVersion, config.general.appVersion);
+}
+
+async function init() {
+  bindStaticLinks();
+  wipeLegacyBrowserStorage();
+  await wipeLegacyExtensionStorage();
+
+  const stored = await storage.get(STORAGE_KEY);
+  const resolved = normalizeProgress(stored[STORAGE_KEY], new Date(), getCurrentTimeZone());
+  progress = resolved.progress;
+  if (resolved.didReset && resolved.reason === "calendar-day-change") {
+    setText(elements.resetNotice, "New local day detected. Yesterday’s counters were cleared.");
+  }
+  renderAll();
+  bindForm();
+  await persist();
+}
+
+init().catch((error) => {
+  setText(elements.saveStatus, "Could not load the local dashboard.");
+  console.error(error);
+});

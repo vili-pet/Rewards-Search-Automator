@@ -1,0 +1,13 @@
+{
+  "name": "rewards-daily-helper",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Compliance-mode Microsoft Rewards daily dashboard. Does not automate searches.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "lint": "node scripts/lint.js",
+    "build": "node scripts/build.js",
+    "validate": "node scripts/validate-compliance.js"
+  }
+}
