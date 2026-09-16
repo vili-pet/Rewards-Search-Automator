@@ -1,60 +1,39 @@
 /* ========================================
-   MODERN UI - Rewards Search Automator
+   Rewards Daily Helper — compliance dashboard
    ======================================== */
 
 :root {
     --primary: #0078d4;
     --primary-dark: #005a9e;
-    --primary-light: #50a3ff;
-    --secondary: #7c3aed;
     --success: #10b981;
-    --danger: #ef4444;
-    --warning: #f59e0b;
     --bg-primary: #f8fafc;
-    --bg-secondary: #ffffff;
     --text-primary: #1e293b;
     --text-secondary: #64748b;
-    --border: #e2e8f0;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
     --radius-sm: 8px;
     --radius-md: 12px;
-    --radius-lg: 16px;
 }
 
 body {
     width: 450px;
-    height: 450px;
+    min-height: 560px;
+    max-height: 600px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: var(--text-primary);
     overflow-x: hidden;
     overflow-y: auto;
     margin: 0;
-    padding: 0;
-    padding-top: 20px;
-    padding-bottom: 60px;
+    padding: 16px 0 64px;
 }
-
-/* ========================================
-   HEADER
-   ======================================== */
 
 .app-header {
     color: white;
-    padding: 0 0 15px 0;
+    padding: 0 0 12px 0;
 }
 
 .header-icon {
-    font-size: 28px;
-    margin-bottom: 6px;
-    animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
+    font-size: 26px;
+    margin-bottom: 4px;
 }
 
 .app-title {
@@ -66,152 +45,120 @@ body {
 
 .app-subtitle {
     font-size: 11px;
-    opacity: 0.9;
+    opacity: 0.92;
     margin: 0;
-    font-weight: 400;
+    font-weight: 500;
 }
 
-/* ========================================
-   ACTION BUTTONS
-   ======================================== */
+.notice-card,
+.day-card,
+.panel {
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    color: white;
+}
 
-.btn-action {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 12px 6px;
-    border: none;
-    border-radius: var(--radius-sm);
+.notice-card p,
+.panel-help,
+.reset-notice,
+.missing-summary,
+.day-zone,
+.save-status,
+.progress-label {
+    margin: 0;
     font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    line-height: 1.45;
 }
 
-.btn-action i {
-    font-size: 18px;
+.notice-card p,
+.panel-help {
+    opacity: 0.95;
 }
 
-.btn-action::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-    transition: left 0.5s ease;
+.day-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
 }
 
-.btn-action:hover::before {
-    left: 100%;
+.day-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
 }
 
-.btn-action:active {
-    transform: scale(0.95);
+.day-zone {
+    opacity: 0.8;
+    margin-top: 2px;
 }
 
-.btn-desktop {
-    background: linear-gradient(135deg, #0078d4, #005a9e);
+.complete-badge {
+    background: var(--success);
     color: white;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    white-space: nowrap;
 }
 
-.btn-desktop:hover {
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4);
-    transform: translateY(-2px);
-    color: white;
+.reset-notice:empty,
+.save-status:empty {
+    display: none;
 }
 
-.btn-mobile {
-    background: linear-gradient(135deg, #7c3aed, #5b21b6);
-    color: white;
+.reset-notice,
+.save-status {
+    margin-top: 6px;
+    color: #fde68a;
 }
-
-.btn-mobile:hover {
-    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
-    transform: translateY(-2px);
-    color: white;
-}
-
-.btn-both {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-}
-
-.btn-both:hover {
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-    transform: translateY(-2px);
-    color: white;
-}
-
-.btn-action:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-/* ========================================
-   PROGRESS BAR
-   ======================================== */
 
 .progress {
     height: 8px;
     background: rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 8px;
 }
 
 .progress-bar {
     background: linear-gradient(90deg, #0078d4, #7c3aed, #10b981);
-    background-size: 200% 100%;
-    animation: progressGradient 2s ease infinite;
-    font-size: 9px;
+    transition: width 0.3s ease;
+}
+
+.progress-label,
+.missing-summary {
+    margin-top: 6px;
     font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    transition: width 0.4s ease;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes progressGradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
+.panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0 0 4px;
 }
 
-/* ========================================
-   FORM ELEMENTS
-   ======================================== */
+.panel-help {
+    margin-bottom: 8px;
+}
 
 .form-label {
     font-size: 11px;
     font-weight: 600;
     color: white;
     margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.form-label i {
-    font-size: 10px;
 }
 
 .form-control-sm {
-    padding: 8px 10px;
+    padding: 7px 8px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: var(--radius-sm);
     font-size: 12px;
     font-weight: 500;
-    transition: all 0.3s ease;
     background: rgba(255, 255, 255, 0.95);
     color: var(--text-primary);
 }
@@ -220,70 +167,72 @@ body {
     outline: none;
     border-color: white;
     box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
-    background: white;
 }
 
-.form-control-sm:disabled {
-    background: rgba(255, 255, 255, 0.6);
-    opacity: 0.7;
-    cursor: not-allowed;
+.input-with-action {
+    display: flex;
+    gap: 6px;
 }
 
-/* ========================================
-   FOOTER
-   ======================================== */
+.input-with-action .form-control-sm {
+    flex: 1;
+}
 
-.btn-f1-promo {
+.btn-plus,
+.btn-copy {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0 8px;
+}
+
+.btn-plus {
+    min-width: 36px;
+}
+
+.btn-copy {
+    min-width: 64px;
+    padding: 4px 8px;
+}
+
+.panel-actions {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.suggestion-list {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
     gap: 6px;
-    padding: 6px 12px;
-    background: linear-gradient(135deg, #e10600, #dc0000);
-    color: white;
-    text-decoration: none;
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.12);
     border-radius: var(--radius-sm);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(225, 6, 0, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    margin-top: 8px;
-    margin-bottom: 4px;
+    padding: 6px 8px;
 }
 
-.btn-f1-promo:hover {
-    background: linear-gradient(135deg, #ff1e00, #e10600);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(225, 6, 0, 0.5);
-}
-
-.btn-f1-promo i:first-child {
-    font-size: 11px;
-    animation: wave 1.5s ease-in-out infinite;
-}
-
-.btn-f1-promo i:last-child {
-    font-size: 10px;
-    transition: transform 0.3s ease;
-}
-
-.btn-f1-promo:hover i:last-child {
-    transform: translateX(3px);
-}
-
-@keyframes wave {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-10deg); }
-    75% { transform: rotate(10deg); }
+.suggestion-text {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.35;
 }
 
 .app-footer {
     background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(10px);
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
     padding: 8px 0 !important;
@@ -299,23 +248,16 @@ body {
 .nav-link.footer-link {
     padding: 6px 10px;
     color: var(--text-secondary);
-    transition: all 0.3s ease;
-    border-radius: var(--radius-sm);
 }
 
 .nav-link.footer-link:hover {
     background: rgba(0, 120, 212, 0.1);
     color: var(--primary);
-    transform: translateY(-2px);
 }
 
 .nav-link.footer-link i {
     font-size: 14px;
 }
-
-/* ========================================
-   SCROLLBAR
-   ======================================== */
 
 ::-webkit-scrollbar {
     width: 6px;
@@ -328,8 +270,4 @@ body {
 ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
     border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
 }

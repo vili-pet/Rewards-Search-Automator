@@ -4,179 +4,138 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Rewards Search Automator</title>
+    <title>Rewards Daily Helper</title>
     <link href="./css/bootstrap.min.css" rel="stylesheet">
     <link href="./css/fa-all.min.css" rel="stylesheet">
     <link href="./css/custom.css" rel="stylesheet">
 </head>
 
 <body>
-    <!-- Header -->
     <div class="app-header text-center">
-        <div class="header-icon">
-            <i class="fa-solid fa-trophy"></i>
+        <div class="header-icon" aria-hidden="true">
+            <i class="fa-solid fa-shield-heart"></i>
         </div>
-        <h1 class="app-title">Rewards Automator</h1>
-        <p class="app-subtitle">Automated Bing searches for Microsoft Rewards</p>
+        <h1 class="app-title">Rewards Daily Helper</h1>
+        <p class="app-subtitle">Compliance mode · daily dashboard · no automation</p>
     </div>
 
     <div class="container-fluid px-3">
-        <!-- Action Buttons -->
-        <div class="row g-2 mb-3">
-            <div class="col-4">
-                <button type="button" class="btn btn-action btn-desktop w-100" id="desktopButton">
-                    <i class="fa-solid fa-desktop"></i>
-                    <span>Desktop</span>
-                </button>
-            </div>
-            <div class="col-4">
-                <button type="button" class="btn btn-action btn-mobile w-100" id="mobileButton">
-                    <i class="fa-solid fa-mobile-screen"></i>
-                    <span>Mobile</span>
-                </button>
-            </div>
-            <div class="col-4">
-                <button type="button" class="btn btn-action btn-both w-100" id="desktopMobileButton">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <span>Both</span>
-                </button>
-            </div>
-        </div>
+        <section class="notice-card" role="note">
+            <p>
+                You are responsible for following Microsoft Rewards rules.
+                This helper does not run searches, click, navigate, or send traffic,
+                and it does not certify that any use is allowed by the rewards program.
+            </p>
+        </section>
 
-        <!-- Stop Button (hidden by default) -->
-        <div class="row g-2 mb-3" id="stopButtonContainer" style="display: none;">
-            <div class="col-12">
-                <button type="button" class="btn btn-danger w-100" id="stopButton">
-                    <i class="fa-solid fa-stop"></i>
-                    <span>Stop Searches</span>
-                </button>
+        <section class="day-card" aria-labelledby="todayDate">
+            <div class="day-row">
+                <div>
+                    <h2 class="day-title" id="todayDate"></h2>
+                    <p class="day-zone" id="todayZone"></p>
+                </div>
+                <span class="complete-badge" id="completeBadge" hidden>Day complete</span>
             </div>
-        </div>
+            <p class="reset-notice" id="resetNotice"></p>
+            <div class="progress" aria-hidden="true">
+                <div class="progress-bar" id="progressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+                    aria-valuenow="0" style="width: 0%"></div>
+            </div>
+            <p class="progress-label" id="progressLabel">0%</p>
+            <p class="missing-summary" id="missingSummary"></p>
+        </section>
 
-        <!-- Progress Bar -->
-        <div class="row mb-3">
-            <div class="col-12">
-                <div class="progress">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
-                        aria-valuemin="0" aria-valuemax="100" style="width: 0%">
+        <section class="panel" aria-labelledby="statusHeading">
+            <h2 class="panel-title" id="statusHeading">Today’s status</h2>
+            <p class="panel-help">Update these yourself after you search or check Rewards. Nothing here is fetched or submitted.</p>
+
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <label class="form-label" for="pointsEarned">Points earned</label>
+                    <div class="input-with-action">
+                        <input type="number" class="form-control form-control-sm" id="pointsEarned" min="0" max="9999" step="1">
+                        <button type="button" class="btn-plus" data-increment="pointsEarned" aria-label="Add one earned point">+1</button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Settings Form -->
-        <div class="row g-2 mb-2">
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-desktop"></i> Desktop
-                </label>
-                <input type="number" class="form-control form-control-sm" 
-                    id="totDesktopSearchesForm" min="1" value="">
-            </div>
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-mobile-screen"></i> Mobile
-                </label>
-                <input type="number" class="form-control form-control-sm" 
-                    id="totMobileSearchesForm" min="1" value="">
-            </div>
-        </div>
-
-        <div class="row g-2 mb-1">
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-hourglass-start"></i> Min (ms)
-                </label>
-                <input type="number" class="form-control form-control-sm"
-                    id="waitingBetweenSearchesFormMin" min="100" value="">
-            </div>
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-hourglass-end"></i> Max (ms)
-                </label>
-                <input type="number" class="form-control form-control-sm"
-                    id="waitingBetweenSearchesFormMax" min="100" value="">
-            </div>
-        </div>
-
-        <!-- Schedule Window -->
-        <div class="row g-2 mb-1">
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-clock"></i> Start
-                </label>
-                <input type="time" class="form-control form-control-sm"
-                    id="scheduleStartTimeForm" value="">
-            </div>
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-clock"></i> End
-                </label>
-                <input type="time" class="form-control form-control-sm"
-                    id="scheduleEndTimeForm" value="">
-            </div>
-        </div>
-
-        <!-- Auto-start -->
-        <div class="row g-2 mb-1">
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-robot"></i> Auto-start
-                </label>
-                <div class="form-check form-switch mt-1">
-                    <input class="form-check-input" type="checkbox" id="autoStartEnabledForm">
+                <div class="col-6">
+                    <label class="form-label" for="dailyPointsGoal">Daily point goal</label>
+                    <input type="number" class="form-control form-control-sm" id="dailyPointsGoal" min="0" max="9999" step="1">
                 </div>
             </div>
-            <div class="col-6">
-                <label class="form-label">
-                    <i class="fa-solid fa-bell"></i> By
-                </label>
-                <input type="time" class="form-control form-control-sm"
-                    id="autoStartTimeForm" value="">
-            </div>
-        </div>
 
-        <!-- F1 Promo Banner -->
-        <div class="row">
-            <div class="col-12">
-                <a href="" 
-                   target="_blank" 
-                   class="btn-f1-promo"
-                   id="btn-f1-promo">
-                    <i class="fa-solid fa-flag-checkered"></i>
-                    <span>Formula 1 Fan?</span>
-                    <i class="fa-solid fa-arrow-right"></i>
-                </a>
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <label class="form-label" for="desktopSearchesDone">Desktop done</label>
+                    <div class="input-with-action">
+                        <input type="number" class="form-control form-control-sm" id="desktopSearchesDone" min="0" max="9999" step="1">
+                        <button type="button" class="btn-plus" data-increment="desktopSearchesDone" aria-label="Add one desktop search you completed">+1</button>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="desktopSearchGoal">Desktop goal</label>
+                    <input type="number" class="form-control form-control-sm" id="desktopSearchGoal" min="0" max="9999" step="1">
+                </div>
             </div>
-        </div>
+
+            <div class="row g-2 mb-2">
+                <div class="col-6">
+                    <label class="form-label" for="mobileSearchesDone">Mobile done</label>
+                    <div class="input-with-action">
+                        <input type="number" class="form-control form-control-sm" id="mobileSearchesDone" min="0" max="9999" step="1">
+                        <button type="button" class="btn-plus" data-increment="mobileSearchesDone" aria-label="Add one mobile search you completed">+1</button>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="mobileSearchGoal">Mobile goal</label>
+                    <input type="number" class="form-control form-control-sm" id="mobileSearchGoal" min="0" max="9999" step="1">
+                </div>
+            </div>
+
+            <label class="form-label" for="notes">Notes</label>
+            <textarea class="form-control form-control-sm" id="notes" rows="2" maxlength="400"
+                placeholder="Optional local note for today"></textarea>
+
+            <div class="panel-actions">
+                <button type="button" class="btn btn-light btn-sm" id="resetToday">Reset today</button>
+                <p class="save-status" id="saveStatus"></p>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="suggestHeading">
+            <h2 class="panel-title" id="suggestHeading">Suggested phrases</h2>
+            <p class="panel-help" id="suggestionStatus"></p>
+            <ul class="suggestion-list" id="suggestionList"></ul>
+            <button type="button" class="btn btn-outline-light btn-sm w-100" id="refreshSuggestions">
+                New local suggestions
+            </button>
+        </section>
     </div>
 
-    <!-- Footer -->
     <nav class="navbar navbar-expand fixed-bottom app-footer">
         <div class="container-fluid">
             <span class="footer-version" id="appVersion"></span>
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
-                    <a class="nav-link footer-link" href="" target="_blank"
+                    <a class="nav-link footer-link" href="https://andreacorriga.com" target="_blank" rel="noopener noreferrer"
                         title="Author's Website" id="authorWebsiteLink">
                         <i class="fa-solid fa-user-astronaut"></i>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link footer-link" href=""
-                        target="_blank" title="Source Code" id="repositoryGithubLink">
+                    <a class="nav-link footer-link" href="https://github.com/AsoStrife/Rewards-Search-Automator"
+                        target="_blank" rel="noopener noreferrer" title="Source Code" id="repositoryGithubLink">
                         <i class="fa-brands fa-github"></i>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link footer-link" href=""
-                        target="_blank" title="Chrome Store" id="storeLink">
+                    <a class="nav-link footer-link" href="https://chromewebstore.google.com/detail/rewards-search-automator/paohfpjfibchbhbkdnlhjpfblafifehg?hl=it"
+                        target="_blank" rel="noopener noreferrer" title="Chrome Store" id="storeLink">
                         <i class="fa-brands fa-chrome"></i>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link footer-link" href="" 
-                        target="_blank" title="Microsoft Rewards" id="rewardsLink">
+                    <a class="nav-link footer-link" href="https://rewards.microsoft.com/"
+                        target="_blank" rel="noopener noreferrer" title="Microsoft Rewards" id="rewardsLink">
                         <i class="fa-solid fa-medal"></i>
                     </a>
                 </li>
@@ -184,7 +143,6 @@
         </div>
     </nav>
 
-    <script src="./js/jquery-3.6.0.min.js"></script>
     <script src="./js/fa-all.min.js"></script>
     <script type="module" src="./js/popup.js"></script>
 </body>

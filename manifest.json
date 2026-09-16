@@ -1,25 +1,20 @@
 {
-  "name": "Rewards Search Automator",
-  "version": "2.2.0",
-  "description": "With this extension, you can automate searches on the Bing search engine to earn points for Microsoft Rewards.",
+  "name": "Rewards Daily Helper",
+  "version": "3.0.0",
+  "description": "Compliance-mode daily dashboard for your own Microsoft Rewards progress. Does not automate searches or send background traffic.",
   "manifest_version": 3,
   "author": "Andrea Corriga - Strifelab",
   "action": {
     "default_popup": "index.html",
-    "default_title": "Search Automator"
+    "default_title": "Rewards Daily Helper"
   },
-  "permissions": ["debugger", "tabs", "alarms", "storage"],
-  "host_permissions": [
-    "https://trends.google.com/*",
-    "https://api.bing.com/*",
-    "https://www.bing.com/*"
-  ],
+  "permissions": ["storage"],
   "icons": {
     "16": "img/icon16.png",
     "48": "img/icon48.png",
     "128": "img/icon128.png"
   },
-  "background": {
-    "service_worker": "./js/background.js"
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'self'"
   }
 }
